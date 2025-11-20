@@ -1,0 +1,13 @@
+{
+  "host": "127.0.0.1",
+  "port": 3307,
+  "user": "root",
+  "password": "root",
+  "database": "sqllearner",
+
+  "initPoolSize": 5,
+  "poolSize": 10,
+
+  "connTimeout": 1000,
+  "maxIdleTime": 60
+}
