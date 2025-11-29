@@ -1,7 +1,5 @@
 #include "utils/db/sqlConnectionPool.h"
 
-#include <thread>
-
 sqlConnectionPool::sqlConnectionPool()
 {
     LOG_INFO << "create sqlConnectionPool";
@@ -41,37 +39,33 @@ sqlConnectionPool::sqlConnectionPool()
         qSize_.fetch_add(1);
     }
 
-    std::thread produce(std::bind(&sqlConnectionPool::connProducer, this));
-    produce.detach();
-
-    // 启动一个新的定时线程，扫描超过maxIdleTime时间的空闲连接，进行对于的连接回收
-    std::thread deletor(std::bind(&sqlConnectionPool::connDeletor, this));
-    deletor.detach();
-
+    producer_ = std::thread(&sqlConnectionPool::connProducer, this);
+    deletor_ = std::thread(&sqlConnectionPool::connDeletor, this);
 }
 
 std::shared_ptr<sqlConnection> sqlConnectionPool::getConnection()
 {
-    if (!run_) return nullptr;
+    if (!run_.load()) return nullptr;
     std::unique_lock<std::mutex> lock(mtx_);
-    LOG_INFO << "sqlConnectionPool::getConnection";
 
-    while (connQueue_.empty())
-    {
-        cv_.wait(lock);
-    }
+    // 等待队列非空或线程要退出
+    cv_.wait(lock, [this] { return !connQueue_.empty() || !run_.load(); });
 
-    // 获取到队列控制权，取出连接
+    if (!run_.load() && connQueue_.empty()) return nullptr;
+
     auto conn = connQueue_.front();
     connQueue_.pop();
 
     // 返回连接，将其删除器改为向队列中归还连接
-    return std::shared_ptr<sqlConnection>(conn.get(),
+    std::shared_ptr<sqlConnection> sp(conn.get(),
            [this, conn](sqlConnection*) {
                std::lock_guard<std::mutex> lock(mtx_);
                connQueue_.push(conn);
                cv_.notify_one();
            });
+    // 通知其他线程，不然会造成死锁
+    cv_.notify_all();
+    return sp;
 }
 
 sqlConnectionPool& sqlConnectionPool::getInstance()
@@ -82,19 +76,15 @@ sqlConnectionPool& sqlConnectionPool::getInstance()
 
 void sqlConnectionPool::connDeletor()
 {
-    // 扫描超过最大空闲时间的连接并删除
-    for (;;)
+    while (run_.load())
     {
-        // 休眠一定时间后再扫描
         std::this_thread::sleep_for(std::chrono::milliseconds(maxIdleTime_));
+        if (!run_.load()) break;
 
         std::lock_guard<std::mutex> lock(mtx_);
-        // 发现当前线程数量多于初始化数量
-        while (qSize_.load() > initPoolSize_)
+        while (qSize_.load() > initPoolSize_ && !connQueue_.empty())
         {
-            LOG_INFO << "delete idle connection";
             auto conn = connQueue_.front();
-            // 计算idle时间
             auto end = conn->getConnIdleTime();
             if (end >= maxIdleTime_)
             {
@@ -109,18 +99,16 @@ void sqlConnectionPool::connDeletor()
 
 void sqlConnectionPool::connProducer()
 {
-    for (;;)
+    while (run_.load())
     {
         std::unique_lock<std::mutex> lock(mtx_);
-        while (!connQueue_.empty())
-        {
-            cv_.wait(lock); // 队列不空，此处生产线程进入等待状态
-        }
+        // 等待队列为空或线程要退出
+        cv_.wait(lock, [this] { return connQueue_.empty() || !run_.load(); });
 
-        // 连接数量没有到达上限，继续创建新的连接
-        if (qSize_ < poolSize_)
+        if (!run_.load()) break;
+
+        if (qSize_.load() < poolSize_)
         {
-            LOG_INFO << "Create new connection";
             auto conn = std::make_shared<sqlConnection>(host_, user_, password_, database_, port_);
             connQueue_.push(conn);
             qSize_.fetch_add(1);
@@ -134,18 +122,22 @@ void sqlConnectionPool::connProducer()
 sqlConnectionPool::~sqlConnectionPool()
 {
     LOG_INFO << "destroy sqlConnections";
-    run_ = false;
-    // 等待所有连接任务执行完成
+    run_.store(false);
+
+    // 唤醒所有等待的线程/消费者
+    cv_.notify_all();
+
+    // 等待后台线程结束
+    if (producer_.joinable()) producer_.join();
+    if (deletor_.joinable()) deletor_.join();
+
+    // 清理连接队列
     std::unique_lock<std::mutex> lock(mtx_);
-
-    while (connQueue_.size() != qSize_)
-    {
-        cv_.wait(lock);
-    }
-
-    // 拿到控制权，开始释放资源
-    while (connQueue_.size() > 0)
+    while (!connQueue_.empty())
     {
         connQueue_.pop();
     }
+
+    // 通知线程结束
+    cv_.notify_all();
 }

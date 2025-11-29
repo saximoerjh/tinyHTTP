@@ -5,7 +5,7 @@
   "password": "root",
   "database": "sqllearner",
 
-  "initPoolSize": 5,
+  "initPoolSize": 1,
   "poolSize": 10,
 
   "connTimeout": 1000,

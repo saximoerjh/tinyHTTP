@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <queue>
+#include <thread>
 
 class sqlConnectionPool
 {
@@ -47,4 +48,7 @@ private:
     std::atomic<int> qSize_{0};
 
     std::atomic<bool> run_{true};
+
+    std::thread producer_;
+    std::thread deletor_;
 };

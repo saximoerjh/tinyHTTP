@@ -8,16 +8,18 @@ file(GLOB_RECURSE HTTP_SERVER_SRC
         "${PROJECT_SOURCE_DIR}/HttpServer/src/*.cpp"
 )
 
-set(TEST_SRC "${PROJECT_SOURCE_DIR}/HttpServer/examples/test.cpp")
+# 单元测试文件
+set(TEST_CONNPOOL_SRC "${PROJECT_SOURCE_DIR}/HttpServer/examples/testConnPool.cpp")
+set(TEST_HTTPCONTEXT_SRC "${PROJECT_SOURCE_DIR}/HttpServer/examples/testHttpContext.cpp")
 
 add_executable(tinyHTTP
-        ${TEST_SRC}
+        ${TEST_HTTPCONTEXT_SRC}
         ${HTTP_SERVER_SRC}
 )
-
 # 关键：把 HttpServer/include 加到目标的包含路径
 target_include_directories(tinyHTTP PRIVATE
         ${PROJECT_SOURCE_DIR}/HttpServer/include
+        ${PROJECT_SOURCE_DIR}/HttpServer
         /usr/include/mysql-cppconn-8
         /usr/include/mysql
 )

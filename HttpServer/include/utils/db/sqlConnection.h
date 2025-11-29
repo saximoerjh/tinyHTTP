@@ -25,17 +25,20 @@ public:
     sqlConnection(const sqlConnection&) = delete;
     sqlConnection& operator=(const sqlConnection&) = delete;
 
-    // 对数据库进行查询并返回结果集
-    MYSQL_RES& executeQuery(const std::string& sql) const;
+    // 执行查询操作，返回结果集指针。调用方需使用 mysql_free_result 释放。
+    MYSQL_RES* executeQuery(const std::string& sql) const;
 
-    // 对数据库进行更新操作，返回受影响的行数
+    // 执行更新操作，返回受影响行数，失败返回 -1。
     int executeUpdate(const std::string& sql) const;
 
-    // 返回连接闲置时间
+    // 返回空闲时间(ms) —— 距离上次 refreshTime 的时间差
     int getConnIdleTime() const;
 
-    // 重置内置时钟
+    // 重置内部计时器
     void refreshTime();
+
+    // 判断连接是否有效
+    bool isValid() const { return conn_ != nullptr; }
 
 private:
     MYSQL* conn_;
