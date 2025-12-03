@@ -39,6 +39,7 @@ public:
 
     // 设置和获取请求方法
     bool setMethod(const char* start, const char* end);
+    bool setMethod(Method method);
 
     // 获取请求方法私有变量
     Method method() const { return method_; }

@@ -61,6 +61,16 @@ bool HttpRequest::setMethod(const char* start, const char* end)
     return false;
 }
 
+bool HttpRequest::setMethod(const Method method)
+{
+    if (method >= kGet && method <= kOptions)
+    {
+        method_ = method;
+        return true;
+    }
+    return false;
+}
+
 std::string HttpRequest::getQueryParameters(const std::string &key) const
 {
     auto it = queryParameters_.find(key);
