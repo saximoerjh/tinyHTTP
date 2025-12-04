@@ -11,9 +11,10 @@ file(GLOB_RECURSE HTTP_SERVER_SRC
 # 单元测试文件
 set(TEST_CONNPOOL_SRC "${PROJECT_SOURCE_DIR}/HttpServer/examples/testConnPool.cpp")
 set(TEST_HTTPCONTEXT_SRC "${PROJECT_SOURCE_DIR}/HttpServer/examples/testHttpContext.cpp")
+set(TEST_ROUTER_SRC "${PROJECT_SOURCE_DIR}/HttpServer/examples/testRouter.cpp")
 
 add_executable(tinyHTTP
-        ${TEST_HTTPCONTEXT_SRC}
+        ${TEST_ROUTER_SRC}
         ${HTTP_SERVER_SRC}
 )
 # 关键：把 HttpServer/include 加到目标的包含路径
@@ -32,4 +33,5 @@ target_link_libraries(tinyHTTP
         mysqlclient
         ssl
         crypto
+        gtest
 )

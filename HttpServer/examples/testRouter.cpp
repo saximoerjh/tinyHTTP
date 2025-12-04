@@ -1,5 +1,3 @@
-// language: cpp
-// File: tests/Router_test.cpp
 #include "./gtest/gtest.h"
 #include <chrono>
 #include <iostream>
@@ -11,6 +9,7 @@
 // 注意：下面的 makeRequest 可能需根据你项目中 HttpRequest 的实际 API 调整。
 // 假设存在默认构造 + setMethod/setPath 或构造函数 (Method, path)。
 // 如果项目提供不同构造，请在此处替换为真实构造调用。
+// 该函数用于测试过程中快速构造 HttpRequest 对象。
 static HttpRequest makeRequest(HttpRequest::Method method, const std::string &path)
 {
     HttpRequest req;
@@ -27,12 +26,14 @@ TEST(RouterTest, ExactCallbackMatch)
     Router router;
     std::atomic<int> hitCount{0};
 
-    router.registerCallback(HttpRequest::Method::GET, "/test/exact", [&](const HttpRequest &req, HttpResponse *resp) {
+    // 注册一个简单的回调函数路由
+    router.registerCallback(HttpRequest::Method::kGet, "/test/exact", [&](const HttpRequest &req, HttpResponse *resp) {
         (void)req; (void)resp;
         ++hitCount;
     });
 
-    HttpRequest req = makeRequest(HttpRequest::Method::GET, "/test/exact");
+    // 构造请求对象
+    HttpRequest req = makeRequest(HttpRequest::Method::kGet, "/test/exact");
 
     const int iterations = 10;
     for (int i = 0; i < iterations; ++i)
@@ -53,7 +54,7 @@ class TestHandler : public RouterHandler
 {
 public:
     std::atomic<int> &counter_;
-    TestHandler(std::atomic<int> &c) : counter_(c) {}
+    explicit TestHandler(std::atomic<int> &c) : counter_(c) {}
     void handle(const HttpRequest &req, HttpResponse *resp) override
     {
         (void)req; (void)resp;
@@ -67,9 +68,9 @@ TEST(RouterTest, ExactObjectHandlerMatch)
     std::atomic<int> hitCount{0};
 
     auto handler = std::make_shared<TestHandler>(hitCount);
-    router.registerHandler(HttpRequest::Method::POST, "/obj/handle", handler);
+    router.registerHandler(HttpRequest::Method::kPost, "/obj/handle", handler);
 
-    HttpRequest req = makeRequest(HttpRequest::Method::POST, "/obj/handle");
+    HttpRequest req = makeRequest(HttpRequest::Method::kPost, "/obj/handle");
 
     const int iterations = 7;
     for (int i = 0; i < iterations; ++i)
@@ -88,15 +89,15 @@ TEST(RouterTest, RegexCallbackMatchAndMiss)
     std::atomic<int> hitCount{0};
 
     // 动态路由模式示例：/user/:id/profile/:section
-    router.addRegexCallback(HttpRequest::Method::GET, "/user/:id/profile/:section",
+    router.addRegexCallback(HttpRequest::Method::kGet, "/user/:id/profile/:section",
                             [&](const HttpRequest &req, HttpResponse *resp) {
                                 (void)req; (void)resp;
                                 ++hitCount;
                             });
 
-    HttpRequest good = makeRequest(HttpRequest::Method::GET, "/user/123/profile/overview");
-    HttpRequest bad1 = makeRequest(HttpRequest::Method::GET, "/user//profile/overview");
-    HttpRequest bad2 = makeRequest(HttpRequest::Method::POST, "/user/123/profile/overview"); // method mismatch
+    HttpRequest good = makeRequest(HttpRequest::Method::kGet, "/user/123/profile/overview");
+    HttpRequest bad1 = makeRequest(HttpRequest::Method::kGet, "/user//profile/overview");
+    HttpRequest bad2 = makeRequest(HttpRequest::Method::kPost, "/user/123/profile/overview"); // method mismatch
 
     bool r1 = router.route(good, nullptr);
     bool r2 = router.route(bad1, nullptr);
@@ -119,12 +120,12 @@ TEST(RouterTest, ThroughputAndLatency)
     Router router;
     std::atomic<int> hitCount{0};
 
-    router.registerCallback(HttpRequest::Method::GET, "/perf/test", [&](const HttpRequest &req, HttpResponse *resp) {
+    router.registerCallback(HttpRequest::Method::kGet, "/perf/test", [&](const HttpRequest &req, HttpResponse *resp) {
         (void)req; (void)resp;
         ++hitCount;
     });
 
-    HttpRequest req = makeRequest(HttpRequest::Method::GET, "/perf/test");
+    HttpRequest req = makeRequest(HttpRequest::Method::kGet, "/perf/test");
 
     const int totalRequests = 10000; // 如 CI 时间有限可减少到 1000
     using clock = std::chrono::high_resolution_clock;
@@ -155,9 +156,15 @@ TEST(RouterTest, ThroughputAndLatency)
 TEST(RouterTest, NotFoundRoute)
 {
     Router router;
-    HttpRequest req = makeRequest(HttpRequest::Method::GET, "/does/not/exist");
+    HttpRequest req = makeRequest(HttpRequest::Method::kGet, "/does/not/exist");
     bool routed = router.route(req, nullptr);
 
     std::cout << "NotFoundRoute: routed=" << routed << "\n";
     ASSERT_FALSE(routed);
+}
+
+int main(int argc, char **argv)
+{
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }
